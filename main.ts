@@ -133,10 +133,27 @@ function run(p: Uint8Array, inp: Uint8Array): { out: Uint8Array; code: number } 
         break;
       }
       case 0x50: {
-        const s = String(D[sp - 1]);
-        if (ol + s.length > 65536) return done(11);
+        // PRINT without allocating a string: write the decimal digits
+        // straight into the output buffer. This matters because programs
+        // that PRINT in a loop otherwise pay a String allocation per value.
+        // a is a plain JS number here, so -(-2147483648) is exactly
+        // 2147483648 and the digit loop below stays exact.
+        let v = D[sp - 1];
+        const neg = v < 0;
+        const a = neg ? -v : v;
+        let n = 0;
+        let t = a;
+        if (t === 0) n = 1;
+        while (t > 0) { n++; t = Math.trunc(t / 10); }
+        const len = n + (neg ? 1 : 0);
+        if (ol + len > 65536) return done(11);
         sp--;
-        for (let i = 0; i < s.length; i++) out[ol++] = s.charCodeAt(i);
+        let p = ol + len;
+        let x = a;
+        if (x === 0) out[--p] = 48;
+        while (x > 0) { out[--p] = 48 + (x % 10); x = Math.trunc(x / 10); }
+        if (neg) out[--p] = 45;
+        ol += len;
         break;
       }
       case 0x51:
